@@ -35,10 +35,11 @@ cards:
   - type: custom:rohlik-courier-card
 ```
 
-The card finds the integration's entities on its own. With more than one Rohlík.cz account, pick them with `<name>_entity`:
+Everything can be set in the visual editor. The card finds the integration's entities on its own; with more than one Rohlík.cz account, pick them there (or with `<name>_entity` in YAML):
 
-| Option | Entity |
+| Option | Meaning |
 |---|---|
+| `show_logo` | Rohlík.cz logo on the left (default `true`; loaded from the Home Assistant brands repository, falls back to a state icon offline) |
 | `courier_entity` | binary sensor *Courier on the way* |
 | `eta_entity` | sensor *Delivery time* |
 | `minutes_entity` | sensor *Minutes to delivery* |

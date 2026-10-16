@@ -18,7 +18,7 @@
  * `<name>_entity` (courier, eta, minutes, bags, ordered, info, since, till).
  */
 
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 const DOMAIN = "rohlikcz";
 const KEYS = {
   courier: ["binary_sensor", "courier_on_the_way"],
@@ -30,6 +30,8 @@ const KEYS = {
   since: ["sensor", "next_order_since"],
   till: ["sensor", "next_order_till"],
 };
+// Rohlík.cz brand icon from the Home Assistant brands repository (what HA itself shows).
+const LOGO_URL = "https://brands.home-assistant.io/rohlikcz/icon.png";
 const NEARBY_MINUTES = 8;
 const SHIFT_MINUTES = 5;
 const TICK_MS = 30_000;
@@ -80,6 +82,10 @@ ha-icon { display: block; }
   background: color-mix(in srgb, var(--rk-state) 12%, transparent);
   --mdc-icon-size: 28px;
 }
+.icon__logo { display: none; width: 40px; height: 40px; object-fit: contain; }
+.icon--logo { background: none; }
+.icon--logo .icon__logo { display: block; }
+.icon--logo ha-icon { display: none !important; }
 
 .count { grid-area: count; min-width: 0; }
 .count__main { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
@@ -196,7 +202,7 @@ ha-icon { display: block; }
 
 const TEMPLATE = `
 <div class="banner" role="button" tabindex="0">
-  <div class="icon"><ha-icon icon="mdi:truck-fast-outline" aria-hidden="true"></ha-icon></div>
+  <div class="icon"><img class="icon__logo" alt="" aria-hidden="true"><ha-icon icon="mdi:truck-fast-outline" aria-hidden="true"></ha-icon></div>
   <div class="count">
     <div class="count__main"><span class="count__num"></span><span class="count__unit">min</span></div>
     <div class="count__sub"></div>
@@ -248,6 +254,11 @@ const price = (amount) =>
 class RohlikCourierCard extends HTMLElement {
   static getStubConfig() {
     return {};
+  }
+
+  static async getConfigElement() {
+    await loadEditorComponents();
+    return document.createElement("rohlik-courier-card-editor");
   }
 
   setConfig(config) {
@@ -311,7 +322,13 @@ class RohlikCourierCard extends HTMLElement {
       banner: $(".banner"), icon: $(".icon ha-icon"), num: $(".count__num"), unit: $(".count__unit"),
       sub: $(".count__sub"), track: $(".track"), msg: $(".info__msg"), meta: $(".info__meta"), rail: $(".track__rail"), orig: $(".track__orig"),
       dep: $(".track__dep"), eta: $(".track__eta"), bagsNum: $(".bags__num"), bagsCap: $(".bags__cap"),
+      iconTile: $(".icon"), logo: $(".icon__logo"),
     };
+    // Without the brands CDN (offline tablet) fall back to the state icon.
+    this._el.logo.addEventListener("error", () => {
+      this._logoFailed = true;
+      this._el.iconTile.classList.remove("icon--logo");
+    });
     const open = () => {
       const entityId = this._entityId(this._mode === "ordered" ? "ordered" : "courier");
       if (!entityId) return;
@@ -404,6 +421,9 @@ class RohlikCourierCard extends HTMLElement {
     const el = this._el;
     this._mode = d.mode;
     this.shadowRoot.querySelector(".preview-note")?.remove();
+    const logo = this._config.show_logo !== false && !this._logoFailed;
+    if (logo && !el.logo.getAttribute("src")) el.logo.src = LOGO_URL;
+    el.iconTile.classList.toggle("icon--logo", logo);
     if (d.mode === "ordered") {
       this._renderOrdered(d);
       return;
@@ -461,6 +481,84 @@ class RohlikCourierCard extends HTMLElement {
       el.banner.append(note);
     }
   }
+}
+
+// Make sure ha-form and the entity picker are loaded before the editor renders:
+// building the stock entities card's editor pulls them in.
+const loadEditorComponents = async () => {
+  if (customElements.get("ha-form") && customElements.get("ha-entity-picker")) return;
+  const helpers = await window.loadCardHelpers?.();
+  const card = await helpers?.createCardElement({ type: "entities", entities: [] });
+  await card?.constructor?.getConfigElement?.();
+};
+
+const ENTITY_FIELDS = [
+  ["courier_entity", "Kurýr na cestě", "binary_sensor"],
+  ["eta_entity", "Čas doručení", "sensor"],
+  ["minutes_entity", "Minuty do doručení", "sensor"],
+  ["bags_entity", "Počet tašek", "sensor"],
+  ["ordered_entity", "Další objednávka", "binary_sensor"],
+  ["info_entity", "Informace o doručení", "sensor"],
+  ["since_entity", "Začátek doručení", "sensor"],
+  ["till_entity", "Konec doručení", "sensor"],
+];
+const EDITOR_SCHEMA = [
+  { name: "show_logo", selector: { boolean: {} } },
+  {
+    name: "entities",
+    type: "expandable",
+    flatten: true,
+    title: "Entity (jen při více účtech Rohlík.cz)",
+    schema: ENTITY_FIELDS.map(([name, , domain]) => ({
+      name,
+      selector: { entity: { filter: { integration: DOMAIN, domain } } },
+    })),
+  },
+];
+const EDITOR_LABELS = {
+  show_logo: "Logo Rohlíku vlevo",
+  ...Object.fromEntries(ENTITY_FIELDS.map(([name, label]) => [name, label])),
+};
+
+class RohlikCourierCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = config || {};
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  _render() {
+    if (!this._hass || !this._config) return;
+    if (!this._form) {
+      const note = document.createElement("p");
+      note.style.cssText = "margin:0 0 12px;color:var(--secondary-text-color);font-size:14px";
+      note.textContent =
+        "Karta si entity integrace Rohlík.cz najde sama. Vyber je jen tehdy, když máš víc účtů.";
+      this._form = document.createElement("ha-form");
+      this._form.schema = EDITOR_SCHEMA;
+      this._form.computeLabel = (schema) => EDITOR_LABELS[schema.name] ?? schema.title ?? schema.name;
+      this._form.addEventListener("value-changed", (ev) => {
+        const config = { ...ev.detail.value };
+        for (const [key, value] of Object.entries(config)) {
+          if (value === "" || value === undefined || value === null) delete config[key];
+        }
+        if (config.show_logo === true) delete config.show_logo; // default
+        this._config = config;
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+      });
+      this.append(note, this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.data = { show_logo: true, ...this._config };
+  }
+}
+
+if (!customElements.get("rohlik-courier-card-editor")) {
+  customElements.define("rohlik-courier-card-editor", RohlikCourierCardEditor);
 }
 
 if (!customElements.get("rohlik-courier-card")) {

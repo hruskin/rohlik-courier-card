@@ -6,11 +6,11 @@
 A slim full-width Home Assistant dashboard banner for [Rohlík.cz](https://www.rohlik.cz) deliveries. It changes with your order and stays out of the way otherwise:
 
 - **Ordered** — the delivery window (`09:00 zítra`, `okno do 10:00 · za 19 h`), Rohlík's latest message and the order summary.
-- **Courier on the way** — the countdown to the live ETA, the trip progress from the courier's departure to the live ETA (the marker slides back and a small *+N* appears when the ETA moves later), *nearby* with the courier's phone in the final minutes, *Přijíždí* at arrival and *+N min* in orange when late.
+- **Courier on the way** — the countdown to the live ETA and the trip progress from the courier's departure to the live ETA (the marker slides back and a small *+N* appears when the ETA moves later), a pulsing marker in the final minutes, *Přijíždí* at arrival and *+N min* in orange when late. The courier's name and phone stay in the sensor's details.
 - **Always** — the reusable bags to hand back to the courier.
 - **No order** — hidden (the dashboard editor shows a preview).
 
-The banner has the same height in every state, follows the dashboard theme (light and dark) and its texts are Czech.
+The banner is about 72 px tall in every state, follows the dashboard theme (light and dark) and its texts are Czech.
 
 ![States](docs/states.png)
 

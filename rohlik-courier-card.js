@@ -18,7 +18,7 @@
  * `<name>_entity` (courier, eta, minutes, bags, ordered, info, since, till).
  */
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const DOMAIN = "rohlikcz";
 const KEYS = {
   courier: ["binary_sensor", "courier_on_the_way"],
@@ -52,10 +52,10 @@ const STYLE = `
 
   position: relative;
   box-sizing: border-box;
-  min-height: 96px;
-  padding: 14px 20px;
+  min-height: 72px;
+  padding: 12px 20px;
   display: grid;
-  grid-template-columns: 48px 264px 1fr auto;
+  grid-template-columns: 48px 232px 1fr auto;
   grid-template-areas: "icon count track bags";
   align-items: center;
   column-gap: 20px;
@@ -92,11 +92,9 @@ ha-icon { display: block; }
   margin-top: 6px; font-size: 15px; line-height: 20px; color: var(--rk-text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.count__sub b { font-weight: 500; color: var(--rk-text); }
-.count__sub ha-icon { display: inline-block; --mdc-icon-size: 16px; vertical-align: -3px; margin-right: 3px; }
-.dot::before { content: "·"; margin: 0 6px; }
+.count__sub:empty { display: none; }
 
-.track { grid-area: track; min-width: 0; padding-top: 18px; }
+.track { grid-area: track; min-width: 0; }
 .track__line { display: flex; align-items: center; gap: 10px; }
 .track__rail { position: relative; flex: 1; height: 6px; border-radius: 3px; background: var(--rk-rail); }
 .track__fill {
@@ -116,9 +114,9 @@ ha-icon { display: block; }
   display: none;
 }
 .banner--shifted:not(.banner--late) .track__orig { display: block; }
-.track__home { color: var(--rk-text-2); --mdc-icon-size: 22px; }
+.track__home { color: var(--rk-text-2); --mdc-icon-size: 20px; }
 .track__labels {
-  display: flex; justify-content: space-between; align-items: baseline; margin: 7px 32px 0 0;
+  display: flex; justify-content: space-between; align-items: baseline; margin: 2px 32px 0 0;
   font-size: 13px; line-height: 16px; color: var(--rk-text-2);
   font-variant-numeric: tabular-nums;
 }
@@ -131,7 +129,7 @@ ha-icon { display: block; }
 .info { grid-area: track; min-width: 0; display: none; }
 .info__msg {
   font-size: 15px; line-height: 20px; color: var(--rk-text);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
 }
 .info__meta { margin-top: 4px; font-size: 13px; line-height: 16px; color: var(--rk-text-2); font-variant-numeric: tabular-nums; }
 .banner--ordered .info { display: block; }
@@ -140,15 +138,15 @@ ha-icon { display: block; }
 .bags {
   grid-area: bags;
   align-self: stretch;
-  box-sizing: border-box; width: 150px;
-  display: grid; grid-template-columns: auto auto; column-gap: 8px;
-  align-content: center; justify-content: center; justify-items: center;
-  padding: 0 8px; margin: -4px -8px -4px 0;
+  box-sizing: border-box; min-width: 150px;
+  display: grid; grid-template-columns: auto auto auto; column-gap: 8px;
+  align-items: center; align-content: center; justify-content: center;
+  padding: 0 10px 0 18px; margin: -4px -8px -4px 0;
   border-left: 1px solid var(--rk-border);
 }
-.bags__icon { color: var(--rk-text-2); align-self: center; --mdc-icon-size: 26px; }
+.bags__icon { color: var(--rk-text-2); --mdc-icon-size: 24px; }
 .bags__num { font-size: 36px; line-height: 40px; font-variant-numeric: tabular-nums; }
-.bags__cap { grid-column: 1 / -1; font-size: 13px; line-height: 16px; color: var(--rk-text-2); margin-top: 2px; white-space: nowrap; }
+.bags__cap { font-size: 13px; line-height: 16px; color: var(--rk-text-2); white-space: pre-line; }
 
 .preview-note {
   position: absolute; top: 6px; right: 12px;
@@ -181,8 +179,8 @@ ha-icon { display: block; }
     row-gap: 6px; padding: 12px 16px 14px; column-gap: 14px;
   }
   .icon { width: 44px; height: 44px; }
-  .track { padding-top: 4px; }
-  .bags { align-self: center; width: auto; padding: 4px 12px; margin: 0 -4px 0 0; }
+  .track { padding-top: 0; }
+  .bags { align-self: center; min-width: 0; padding: 4px 12px; margin: 0 -4px 0 0; }
 }
 @container rk (max-width: 420px) {
   .count__num { font-size: 36px; line-height: 38px; }
@@ -224,8 +222,6 @@ const TEMPLATE = `
 
 const plural = (n, one, few, many) => (n === 1 ? one : n >= 2 && n <= 4 ? few : many);
 const hm = (date) => date.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
-const esc = (text) =>
-  String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const toDate = (value) => {
   const date = value ? new Date(value) : null;
   return date && !isNaN(date) ? date : null;
@@ -248,11 +244,6 @@ const inDuration = (ms) => {
 };
 const price = (amount) =>
   `${Number(amount).toLocaleString("cs-CZ", { maximumFractionDigits: 0 })} Kč`;
-// "+420000000001" → "000 000 001"
-const formatPhone = (phone) => {
-  const digits = String(phone).replace(/\D/g, "").replace(/^420(?=\d{9}$)/, "");
-  return digits.length === 9 ? digits.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3") : phone;
-};
 
 class RohlikCourierCard extends HTMLElement {
   static getStubConfig() {
@@ -344,7 +335,7 @@ class RohlikCourierCard extends HTMLElement {
       const now = Date.now();
       return {
         mode: "trip", demo: true, now, dep: new Date(now - 43 * 60000), eta: new Date(now + 47 * 60000),
-        eta0: new Date(now + 47 * 60000), mins: 47, courier: "Petr", phone: null, nearby: false, bags: 9,
+        eta0: new Date(now + 47 * 60000), mins: 47, nearby: false, bags: 9,
       };
     }
     const a = courier.attributes;
@@ -359,7 +350,7 @@ class RohlikCourierCard extends HTMLElement {
       mode: "trip", now, eta, mins: mins ?? null,
       dep: toDate(a.departed_at),
       eta0: toDate(a.initial_eta) || eta,
-      courier: a.courier, phone: a.phone, nearby: a.nearby,
+      nearby: a.nearby,
       bags: Number.isNaN(bags) ? null : bags,
     };
   }
@@ -389,16 +380,17 @@ class RohlikCourierCard extends HTMLElement {
     el.unit.hidden = !d.since;
     el.unit.textContent = d.since ? relativeDay(d.since, d.now) : "";
     const till = d.till ? hm(d.till) : null;
-    el.sub.textContent = started
-      ? `okno běží${till ? ` do ${till}` : ""} · kurýr ještě nevyjel`
-      : [till ? `okno do ${till}` : null, d.since ? inDuration(d.since - d.now) : null].filter(Boolean).join(" · ");
+    el.sub.textContent = "";
     el.msg.textContent = d.message || "Objednávka čeká na doručení";
     el.meta.textContent = [
+      ...(started
+        ? [`okno běží${till ? ` do ${till}` : ""}`, "kurýr ještě nevyjel"]
+        : [till ? `okno do ${till}` : null, d.since ? inDuration(d.since - d.now) : null]),
       d.items != null ? `${d.items} ${plural(d.items, "položka", "položky", "položek")}` : null,
       d.total != null ? price(d.total) : null,
     ].filter(Boolean).join(" · ");
     el.bagsNum.textContent = String(d.bags ?? "–");
-    el.bagsCap.textContent = `${plural(d.bags ?? 0, "taška", "tašky", "tašek")} k vrácení`;
+    el.bagsCap.textContent = `${plural(d.bags ?? 0, "taška", "tašky", "tašek")}\nk vrácení`;
     el.banner.setAttribute("aria-label",
       `Rohlík: objednávka${d.since ? ` dorazí ${relativeDay(d.since, d.now)} od ${hm(d.since)}` : ""}${till ? ` do ${till}` : ""}.`);
   }
@@ -429,32 +421,12 @@ class RohlikCourierCard extends HTMLElement {
     el.banner.className = `banner banner--${state}${shifted ? " banner--shifted" : ""}`;
     el.icon.setAttribute("icon", state === "arriving" ? "mdi:map-marker-radius-outline" : "mdi:truck-fast-outline");
 
-    const name = d.courier ? `<b>${esc(d.courier)}</b>` : "";
-    const phone = d.phone && state !== "on-way"
-      ? `<span class="dot"></span><ha-icon icon="mdi:phone" aria-hidden="true"></ha-icon><b>${esc(formatPhone(d.phone))}</b>`
-      : "";
-    let num, sub;
-    switch (state) {
-      case "late":
-        num = `+${-mins}`;
-        sub = `Zpoždění${name ? `<span class="dot"></span>${name}` : ""}${phone}`;
-        break;
-      case "arriving":
-        num = "Přijíždí";
-        sub = `Kurýr ${name}${phone}`;
-        break;
-      case "nearby":
-        num = String(mins);
-        sub = name ? `${name} je blízko${phone}` : `Kurýr je blízko${phone}`;
-        break;
-      default:
-        num = mins === null ? "–" : String(mins);
-        sub = name ? `Kurýr ${name} je na cestě` : "Kurýr je na cestě";
-    }
-    el.num.textContent = num;
+    el.num.textContent = state === "late" ? `+${-mins}`
+      : state === "arriving" ? "Přijíždí"
+      : mins === null ? "–" : String(mins);
     el.unit.textContent = "min";
     el.unit.hidden = state === "arriving";
-    el.sub.innerHTML = sub;
+    el.sub.textContent = "";
 
     // Trip progress: departure → current ETA. The ETA moves, so the marker can slide back.
     const dep = d.dep && d.eta && d.dep < d.eta ? d.dep : d.eta ? new Date(Math.min(d.now, d.eta - 3600000)) : null;
@@ -473,8 +445,8 @@ class RohlikCourierCard extends HTMLElement {
     const bags = d.bags ?? "–";
     el.bagsNum.textContent = String(bags);
     el.bagsCap.textContent = state === "arriving"
-      ? "připravte k vrácení"
-      : `${plural(d.bags ?? 0, "taška", "tašky", "tašek")} k vrácení`;
+      ? "připravte\nk vrácení"
+      : `${plural(d.bags ?? 0, "taška", "tašky", "tašek")}\nk vrácení`;
 
     const bagsText = d.bags === null ? "" : ` Vrátit ${d.bags} ${plural(d.bags, "tašku", "tašky", "tašek")}.`;
     el.banner.setAttribute("aria-label",

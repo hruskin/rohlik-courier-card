@@ -18,7 +18,7 @@
  * `<name>_entity` (courier, eta, minutes, bags, ordered, info, since, till, deadline).
  */
 
-const VERSION = "1.0.4";
+const VERSION = "1.0.5";
 const DOMAIN = "rohlikcz";
 const KEYS = {
   courier: ["binary_sensor", "courier_on_the_way"],
@@ -36,6 +36,7 @@ const LOGO_URL = "https://brands.home-assistant.io/rohlikcz/icon.png";
 const NEARBY_MINUTES = 8;
 const SHIFT_MINUTES = 5;
 const TICK_MS = 30_000;
+const ITEMS_IDLE_MS = 90_000;
 
 const STYLE = `
 :host { display: block; container: rk / inline-size; }
@@ -89,9 +90,12 @@ ha-icon { display: block; }
 .icon--logo { width: 52px; border-radius: 0; background: none; display: flex; align-items: center; justify-content: center; }
 .icon--logo .icon__logo { display: block; }
 .icon--logo .icon__speed { display: block; }
+.banner--ordered .icon__speed { display: none; }
 .icon--logo ha-icon { display: none !important; }
 
 .count { grid-area: count; min-width: 0; }
+/* fixed countdown width while on the way, so the trip rail never jumps between states */
+.banner:not(.banner--ordered):not(.banner--arriving) .count { min-width: var(--rk-count-w, 150px); }
 .count__main { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .count__num {
   font-size: 44px; line-height: 44px; font-weight: var(--rk-num-weight); letter-spacing: -.5px;
@@ -118,34 +122,26 @@ ha-icon { display: block; }
   background: var(--rk-state); box-shadow: 0 0 0 3px var(--rk-bg);
   transition: left .8s ease;
 }
-.track__orig {
-  position: absolute; top: -4px; bottom: -4px; left: calc(var(--o) * 100%);
-  width: 2px; margin-left: -1px; border-radius: 1px; background: var(--rk-warn);
-  display: none;
-}
-.banner--shifted:not(.banner--late) .track__orig { display: block; }
 .track__home { color: var(--rk-text-2); --mdc-icon-size: 20px; }
 .track__labels {
-  display: flex; justify-content: space-between; align-items: baseline; margin: 2px 32px 0 0;
-  font-size: 13px; line-height: 16px; color: var(--rk-text-2);
+  display: flex; justify-content: flex-end; align-items: baseline; margin: 2px 32px 0 0;
+  font-size: 13px; line-height: 20px; color: var(--rk-text-2);
   font-variant-numeric: tabular-nums;
 }
-.track__eta { color: var(--rk-text); font-size: 15px; }
+.track__eta { color: var(--rk-text-2); font-size: 15px; }
+.track__eta b { font-size: 17px; color: var(--rk-text); }
 .track__eta b { font-weight: 500; }
 .track__eta s { text-decoration-thickness: 1px; color: var(--rk-text-2); }
 .shift { color: var(--rk-warn-text); font-weight: 500; font-size: 13px; position: relative; top: -6px; line-height: 0; margin-left: 1px; display: none; }
 .banner--shifted .shift { display: inline; }
 
-.info { grid-area: track; min-width: 0; display: none; }
-.info__msg {
-  font-size: 15px; line-height: 20px; color: var(--rk-text);
-  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
-}
-.info__msg b { font-weight: 500; }
-.info__msg ha-icon {
-  display: inline-block; vertical-align: -4px; margin-right: 8px;
-  color: var(--rk-text-2); --mdc-icon-size: 20px;
-}
+.info { grid-area: track; min-width: 0; display: none; justify-self: end; text-align: right; }
+/* add-items deadline: built like the bags block (icon · value · caption), next to it */
+.add { display: grid; grid-template-columns: auto auto; column-gap: 10px; align-items: center; justify-content: end; text-align: left; }
+.add ha-icon { color: var(--rk-text-2); --mdc-icon-size: 26px; grid-row: span 2; }
+.add__time { font-size: 22px; line-height: 26px; color: var(--rk-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.add__cap { font-size: 13px; line-height: 16px; color: var(--rk-text-2); white-space: nowrap; }
+.add--soon .add__time { color: var(--rk-warn-text); }
 .banner--ordered .info { display: block; }
 .banner--ordered .track { display: none; }
 
@@ -179,13 +175,13 @@ ha-icon { display: block; }
 }
 .items__title { flex: 1; font-size: 18px; font-weight: 500; }
 .items__close {
-  width: 36px; height: 36px; border: none; border-radius: 50%; background: none; cursor: pointer;
-  color: var(--secondary-text-color, #727272); font-size: 24px; line-height: 36px;
+  width: 48px; height: 48px; margin: -6px -6px -6px 0; border: none; border-radius: 50%; background: none; cursor: pointer;
+  color: var(--secondary-text-color, #727272); font-size: 28px; line-height: 48px;
 }
 .items__close:hover { background: color-mix(in srgb, var(--primary-text-color, #212121) 8%, transparent); }
 .items__list { list-style: none; margin: 0; padding: 4px 0 12px; overflow-y: auto; outline: none; }
 .items__list li {
-  display: flex; justify-content: space-between; gap: 16px; padding: 10px 20px;
+  display: flex; justify-content: space-between; gap: 32px; padding: 10px 20px;
   font-size: 15px; line-height: 20px;
 }
 .items__list li + li { border-top: 1px solid color-mix(in srgb, var(--divider-color, #e0e0e0) 60%, transparent); }
@@ -217,6 +213,21 @@ ha-icon { display: block; }
 .banner--late { --rk-state: var(--rk-warn); }
 .banner--late .count__num { color: var(--rk-warn-text); }
 
+/* the closer the courier, the more the whole banner says so – readable from across the room */
+.banner { transition: border-color .6s ease, background-color .6s ease; }
+.count__num { transition: color .6s ease; }
+.banner--nearby { border-color: var(--rk-accent); }
+.banner--nearby .count__num { color: var(--rk-accent); }
+.banner--arriving {
+  border-color: var(--rk-accent);
+  background: color-mix(in srgb, var(--rk-accent) 14%, var(--rk-bg));
+}
+.banner--arriving .count__num { color: var(--rk-accent); }
+.banner--arriving .bags { background: none; }
+.banner--late { border-color: var(--rk-warn); }
+.banner--late .track__eta, .banner--late .track__eta b { color: var(--rk-warn-text); }
+.banner--late .track__eta s { color: inherit; }
+
 /* narrower (portrait tablet, sections column): same single row, just tighter */
 @container rk (max-width: 760px) {
   .banner { grid-template-columns: 46px auto 1fr auto; column-gap: 12px; padding: 10px 14px; }
@@ -227,8 +238,11 @@ ha-icon { display: block; }
   .count__unit { font-size: 17px; }
   .bags { min-width: 0; padding: 0 6px 0 14px; }
   .bags__num { font-size: 32px; line-height: 36px; }
+  .banner { --rk-count-w: 124px; }
   .track__labels { font-size: 12px; }
   .track__eta { font-size: 13px; }
+  .track__eta b { font-size: 16px; }
+  .add__time { font-size: 20px; }
 }
 /* phone: the trip progress / add-items line moves to a second row */
 @container rk (max-width: 460px) {
@@ -239,10 +253,13 @@ ha-icon { display: block; }
   }
   .icon { display: none; }
   .count__num { font-size: 34px; line-height: 38px; }
+  .add ha-icon { --mdc-icon-size: 20px; }
+  .add__time { font-size: 17px; line-height: 20px; }
+  .add__cap { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .track__fill, .track__marker { transition: none; }
+  .track__fill, .track__marker, .banner, .count__num { transition: none; }
   .banner--nearby .track__marker::after { animation: none; opacity: .35; transform: scale(1.8); }
 }
 `;
@@ -258,12 +275,11 @@ const TEMPLATE = `
     <div class="track__line">
       <div class="track__rail">
         <div class="track__fill"></div>
-        <div class="track__orig"></div>
         <div class="track__marker"></div>
       </div>
       <div class="track__home"><ha-icon icon="mdi:home-outline" aria-hidden="true"></ha-icon></div>
     </div>
-    <div class="track__labels"><span class="track__dep"></span><span class="track__eta"></span></div>
+    <div class="track__labels"><span class="track__eta"></span></div>
   </div>
   <div class="info"><div class="info__msg"></div></div>
   <div class="bags">
@@ -340,6 +356,7 @@ class RohlikCourierCard extends HTMLElement {
 
   disconnectedCallback() {
     clearInterval(this._timer);
+    clearTimeout(this._itemsTimer);
   }
 
   _entityId(name) {
@@ -364,8 +381,8 @@ class RohlikCourierCard extends HTMLElement {
     const $ = (sel) => root.querySelector(sel);
     this._el = {
       banner: $(".banner"), icon: $(".icon ha-icon"), num: $(".count__num"), unit: $(".count__unit"),
-      sub: $(".count__sub"), track: $(".track"), msg: $(".info__msg"), rail: $(".track__rail"), orig: $(".track__orig"),
-      dep: $(".track__dep"), eta: $(".track__eta"), bagsNum: $(".bags__num"), bagsCap: $(".bags__cap"),
+      sub: $(".count__sub"), track: $(".track"), msg: $(".info__msg"), rail: $(".track__rail"),
+      eta: $(".track__eta"), bagsNum: $(".bags__num"), bagsCap: $(".bags__cap"),
       iconTile: $(".icon"), logo: $(".icon__logo"),
     };
     // Without the brands CDN (offline tablet) fall back to the state icon.
@@ -375,6 +392,14 @@ class RohlikCourierCard extends HTMLElement {
     });
     const dialog = root.querySelector(".items");
     root.querySelector(".items__close").addEventListener("click", () => dialog.close());
+    // Nobody closes a dialog on a wall tablet: close it after a while without touch or scroll.
+    const restartIdle = () => {
+      clearTimeout(this._itemsTimer);
+      if (dialog.open) this._itemsTimer = setTimeout(() => dialog.close(), ITEMS_IDLE_MS);
+    };
+    this._restartItemsIdle = restartIdle;
+    for (const type of ["pointerdown", "scroll", "keydown"]) dialog.addEventListener(type, restartIdle, { capture: true, passive: true });
+    dialog.addEventListener("close", () => clearTimeout(this._itemsTimer));
     // A click on the backdrop lands on the dialog element itself.
     dialog.addEventListener("click", (ev) => ev.target === dialog && dialog.close());
     const open = () => {
@@ -420,11 +445,14 @@ class RohlikCourierCard extends HTMLElement {
     const anchored = window.innerHeight - top >= 240;
     Object.assign(dialog.style, anchored
       ? { margin: "0", inset: "auto", top: `${top}px`, left: `${rect.left}px`,
-          width: `${rect.width}px`, maxHeight: `${window.innerHeight - top - 16}px` }
-      : { margin: "", inset: "", top: "", left: "", width: "", maxHeight: "" });
+          // as wide as the item names need, never wider than the banner
+          width: "fit-content", minWidth: `${Math.min(320, rect.width)}px`, maxWidth: `${rect.width}px`,
+          maxHeight: `${window.innerHeight - top - 16}px` }
+      : { margin: "", inset: "", top: "", left: "", width: "", minWidth: "", maxWidth: "", maxHeight: "" });
     dialog.showModal();
     list.focus(); // not the close button, which would show a focus ring
     list.scrollTop = 0;
+    this._restartItemsIdle();
     return true;
   }
 
@@ -487,8 +515,11 @@ class RohlikCourierCard extends HTMLElement {
     const until = canAdd
       ? `${d.deadline - d.now > DAY ? `${relativeDay(d.deadline, d.now)} ` : ""}${hm(d.deadline)}`
       : "";
+    // The last hour before the deadline in the warning colour.
+    const soon = canAdd && d.deadline - d.now < 3600000;
     el.msg.innerHTML = canAdd
-      ? `<ha-icon icon="mdi:cart-plus" title="Do objednávky lze ještě přidat zboží"></ha-icon><b>do ${until}</b>`
+      ? `<div class="add${soon ? " add--soon" : ""}"><ha-icon icon="mdi:cart-plus"></ha-icon>`
+        + `<span class="add__time">do ${until}</span><span class="add__cap">přidat zboží</span></div>`
       : "";
     el.bagsNum.textContent = String(d.bags ?? "–");
     el.bagsCap.textContent = `${plural(d.bags ?? 0, "taška", "tašky", "tašek")}\nk vrácení`;
@@ -527,25 +558,25 @@ class RohlikCourierCard extends HTMLElement {
     el.banner.className = `banner banner--${state}${shifted ? " banner--shifted" : ""}`;
     el.icon.setAttribute("icon", state === "arriving" ? "mdi:map-marker-radius-outline" : "mdi:truck-fast-outline");
 
+    // An hour or more reads better as "1 h 35" than "95 min".
+    const long = state !== "late" && state !== "arriving" && mins !== null && mins >= 60;
     el.num.textContent = state === "late" ? `+${-mins}`
       : state === "arriving" ? "Přijíždí"
-      : mins === null ? "–" : String(mins);
+      : mins === null ? "–"
+      : long ? `${Math.floor(mins / 60)} h ${String(mins % 60).padStart(2, "0")}`
+      : String(mins);
     el.unit.textContent = "min";
-    el.unit.hidden = state === "arriving";
+    el.unit.hidden = state === "arriving" || long;
     el.sub.textContent = "";
 
     // Trip progress: departure → current ETA. The ETA moves, so the marker can slide back.
     const dep = d.dep && d.eta && d.dep < d.eta ? d.dep : d.eta ? new Date(Math.min(d.now, d.eta - 3600000)) : null;
     const span = dep && d.eta ? Math.max(60000, d.eta - dep) : null;
     const p = span ? Math.max(0, Math.min(1, (d.now - dep) / span)) : 0;
-    const o = span && d.eta0 ? Math.max(0, Math.min(1, (d.eta0 - dep) / span)) : 0;
     el.rail.style.setProperty("--p", p.toFixed(3));
-    el.rail.style.setProperty("--o", o.toFixed(3));
     el.track.setAttribute("aria-valuenow", String(Math.round(p * 100)));
-    el.dep.textContent = dep ? `odjezd ${hm(dep)}` : "";
-    el.orig.title = d.eta0 ? `původní odhad ${hm(d.eta0)}` : "";
     el.eta.innerHTML = !d.eta ? ""
-      : state === "late" ? `měl být <s>${hm(d.eta)}</s>`
+      : state === "late" ? `zpoždění · měl být <s>${hm(d.eta)}</s>`
       : `příjezd <b>${hm(d.eta)}</b><span class="shift">+${shift}</span>`;
 
     const bags = d.bags ?? "–";

@@ -30,7 +30,8 @@ const ITEMS=[['Miil Máslo 82%',2,'250 g'],['BIO kiwi kus (cca 80g)',4,'1 ks'],[
 const cases=[
  ['Objednáno večer předem',{since:at(1,9),till:at(1,10),deadline:at(1,2)+50*m,msg:'Kurýr přijede s nákupem přibližně v 10:00. Stále je možné přidávat do objednávky další zboží.'}],
  ['Objednáno – doobjednání už skončilo',{since:now+95*m,till:now+155*m,deadline:now-60*m,msg:'Tašky už se začínají plnit vaším nákupem. Aktuálně to vypadá, že k vám kurýr dorazí zhruba v 09:00. Na viděnou!'}],
-  ['Kurýr jede',{since:at(0,9),till:at(0,10),mins:47}],
+  ['Kurýr jede, ještě daleko',{since:at(0,9),till:at(0,10),mins:95}],
+ ['Kurýr jede',{since:at(0,9),till:at(0,10),mins:47}],
  ['Kurýr jede, odhad +12',{since:at(0,9),till:at(0,10),mins:35,shift:12}],
  ['Kurýr blízko',{since:at(0,9),till:at(0,10),mins:6,phone:'+420000000001'}],
  ['Přijíždí',{since:at(0,9),till:at(0,10),mins:1,phone:'+420000000001'}],

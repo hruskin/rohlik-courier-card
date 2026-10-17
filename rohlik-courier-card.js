@@ -18,7 +18,7 @@
  * `<name>_entity` (courier, eta, minutes, bags, ordered, info, since, till, deadline).
  */
 
-const VERSION = "1.0.5";
+const VERSION = "1.0.6";
 const DOMAIN = "rohlikcz";
 const KEYS = {
   courier: ["binary_sensor", "courier_on_the_way"],
@@ -258,6 +258,28 @@ ha-icon { display: block; }
   .add__cap { display: none; }
 }
 
+/* compact_ordered: a thin one-row bar while ordered; full height once the courier leaves */
+.banner.banner--thin {
+  min-height: 40px; padding: 0 14px; column-gap: 12px; row-gap: 0;
+  grid-template-columns: 30px auto 1fr auto; grid-template-areas: "icon count track bags";
+}
+.banner--thin .icon { display: flex; width: 30px; height: 30px; }
+.banner--thin .icon__logo { width: 26px; height: 26px; }
+.banner--thin .count__num { font-size: 20px; line-height: 24px; letter-spacing: 0; }
+.banner--thin .count__unit { font-size: 15px; }
+.banner--thin .add { column-gap: 6px; }
+.banner--thin .add ha-icon { --mdc-icon-size: 20px; grid-row: auto; }
+.banner--thin .add__time { font-size: 17px; line-height: 22px; }
+.banner--thin .add__cap { display: none; }
+.banner--thin .bags { align-self: center; min-width: 0; height: 24px; padding: 0 0 0 12px; margin: 0; column-gap: 6px; }
+.banner--thin .bags__icon { --mdc-icon-size: 20px; }
+.banner--thin .bags__num { font-size: 17px; line-height: 22px; }
+.banner--thin .bags__cap { white-space: nowrap; }
+@container rk (max-width: 460px) {
+  .banner.banner--thin { grid-template-columns: auto 1fr auto; grid-template-areas: "count track bags"; }
+  .banner--thin .icon, .banner--thin .bags__cap { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .track__fill, .track__marker, .banner, .count__num { transition: none; }
   .banner--nearby .track__marker::after { animation: none; opacity: .35; transform: scale(1.8); }
@@ -450,6 +472,8 @@ class RohlikCourierCard extends HTMLElement {
           maxHeight: `${window.innerHeight - top - 16}px` }
       : { margin: "", inset: "", top: "", left: "", width: "", minWidth: "", maxWidth: "", maxHeight: "" });
     dialog.showModal();
+    // Centred under the banner (its width follows the item names).
+    if (anchored) dialog.style.left = `${rect.left + (rect.width - dialog.offsetWidth) / 2}px`;
     list.focus(); // not the close button, which would show a focus ring
     list.scrollTop = 0;
     this._restartItemsIdle();
@@ -502,7 +526,8 @@ class RohlikCourierCard extends HTMLElement {
 
   _renderOrdered(d) {
     const el = this._el;
-    el.banner.className = "banner banner--ordered";
+    const thin = this._config.compact_ordered === true;
+    el.banner.className = `banner banner--ordered${thin ? " banner--thin" : ""}`;
     el.icon.setAttribute("icon", "mdi:package-variant-closed");
     el.num.textContent = d.since ? hm(d.since) : "–";
     el.unit.hidden = !d.since;
@@ -522,7 +547,7 @@ class RohlikCourierCard extends HTMLElement {
         + `<span class="add__time">do ${until}</span><span class="add__cap">přidat zboží</span></div>`
       : "";
     el.bagsNum.textContent = String(d.bags ?? "–");
-    el.bagsCap.textContent = `${plural(d.bags ?? 0, "taška", "tašky", "tašek")}\nk vrácení`;
+    el.bagsCap.textContent = `${plural(d.bags ?? 0, "taška", "tašky", "tašek")}${thin ? "" : "\nk vrácení"}`;
     el.banner.setAttribute("aria-label",
       `Rohlík: objednávka${d.since ? ` dorazí ${relativeDay(d.since, d.now)} od ${hm(d.since)}` : ""}${till ? ` do ${till}` : ""}.`
       + (canAdd ? ` Zboží lze přidat do ${relativeDay(d.deadline, d.now)} ${hm(d.deadline)}.` : ""));
@@ -622,6 +647,7 @@ const ENTITY_FIELDS = [
 ];
 const EDITOR_SCHEMA = [
   { name: "show_logo", selector: { boolean: {} } },
+  { name: "compact_ordered", selector: { boolean: {} } },
   {
     name: "number_weight",
     selector: {
@@ -647,6 +673,7 @@ const EDITOR_SCHEMA = [
 ];
 const EDITOR_LABELS = {
   show_logo: "Logo Rohlíku vlevo",
+  compact_ordered: "Úsporný pruh při objednávce (40 px, plná výška až kurýr vyjede)",
   number_weight: "Písmo čísel",
   ...Object.fromEntries(ENTITY_FIELDS.map(([name, label]) => [name, label])),
 };
@@ -680,13 +707,14 @@ class RohlikCourierCardEditor extends HTMLElement {
         // Keep defaults out of the YAML.
         if (config.show_logo === true) delete config.show_logo;
         if (config.number_weight === "regular") delete config.number_weight;
+        if (config.compact_ordered === false) delete config.compact_ordered;
         this._config = config;
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
       });
       this.append(note, this._form);
     }
     this._form.hass = this._hass;
-    this._form.data = { show_logo: true, number_weight: "regular", ...this._config };
+    this._form.data = { show_logo: true, compact_ordered: false, number_weight: "regular", ...this._config };
   }
 }
 

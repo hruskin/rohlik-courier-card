@@ -11,9 +11,9 @@ A slim full-width Home Assistant dashboard banner for [Rohlík.cz](https://www.r
 - **Courier on the way** — the countdown to the live ETA (`1 h 35` above an hour) and the trip progress to the live ETA (the marker slides back and a small *+N* appears at the arrival time when the ETA moves later). The closer the courier, the more the whole banner says so: blue outline in the final minutes, a blue banner at arrival (*Přijíždí*), an orange outline and *zpoždění · měl být* when late. The courier's name and phone stay in the sensor's details.
 - **Always** — the reusable bags to hand back to the courier.
 - **No order** — hidden (the dashboard editor shows a preview).
-- **Tap** — the list of items in the order (name and amount), dropping down right under the banner; it closes by itself after 90 s without a touch.
+- **Tap** — the list of items in the order (name and amount), dropping down right under the banner, centred; it closes by itself after 90 s without a touch.
 
-The banner is about 72 px tall in every state and stays on one row down to phone widths, follows the dashboard theme (light and dark) and its texts are Czech.
+The banner is about 72 px tall in every state (one row down to ~460 px, two rows on phones; optionally a 40 px bar while ordered), follows the dashboard theme (light and dark) and its texts are Czech.
 
 ![States](docs/states.png)
 
@@ -43,6 +43,7 @@ Everything can be set in the visual editor. The card finds the integration's ent
 | Option | Meaning |
 |---|---|
 | `show_logo` | Rohlík.cz logo on the left (default `true`; loaded from the Home Assistant brands repository, falls back to a state icon offline) |
+| `compact_ordered` | `true`: a thin 40 px one-row bar while ordered, full height once the courier leaves (default `false`) |
 | `number_weight` | `regular` (default) or `bold` — weight of the big countdown/time and bags numbers |
 | `courier_entity` | binary sensor *Courier on the way* |
 | `eta_entity` | sensor *Delivery time* |

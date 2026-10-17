@@ -1,17 +1,19 @@
-# 🚚 Rohlík.cz Delivery Banner
+<img src="docs/logo.png" alt="" width="120" align="right">
+
+# Rohlík.cz Delivery Banner
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/v/release/hruskin/rohlik-courier-card)](https://github.com/hruskin/rohlik-courier-card/releases)
 
 A slim full-width Home Assistant dashboard banner for [Rohlík.cz](https://www.rohlik.cz) deliveries. It changes with your order and stays out of the way otherwise:
 
-- **Ordered** — the delivery time (`09:00 zítra`) and until when items can still be added (`Doobjednat do zítra 02:50`).
+- **Ordered** — the delivery time (`09:00 zítra`) and, with a cart icon, until when items can still be added (`do 02:50`).
 - **Courier on the way** — the countdown to the live ETA and the trip progress from the courier's departure to the live ETA (the marker slides back and a small *+N* appears when the ETA moves later), a pulsing marker in the final minutes, *Přijíždí* at arrival and *+N min* in orange when late. The courier's name and phone stay in the sensor's details.
 - **Always** — the reusable bags to hand back to the courier.
 - **No order** — hidden (the dashboard editor shows a preview).
-- **Tap** — the list of items in the order (name and amount).
+- **Tap** — the list of items in the order (name and amount), dropping down right under the banner.
 
-The banner is about 72 px tall in every state, follows the dashboard theme (light and dark) and its texts are Czech.
+The banner is about 72 px tall in every state and stays on one row down to phone widths, follows the dashboard theme (light and dark) and its texts are Czech.
 
 ![States](docs/states.png)
 
@@ -63,4 +65,4 @@ The card is a single dependency-free file, [`rohlik-courier-card.js`](rohlik-cou
 
 ## License
 
-MIT
+MIT. The croissant is the Rohlík.cz logo (trademark of Rohlik Group, served from the Home Assistant brands repository); this is an independent community project, not affiliated with Rohlík.cz.

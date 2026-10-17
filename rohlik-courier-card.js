@@ -18,7 +18,7 @@
  * `<name>_entity` (courier, eta, minutes, bags, ordered, info, since, till, deadline).
  */
 
-const VERSION = "1.0.3";
+const VERSION = "1.0.4";
 const DOMAIN = "rohlikcz";
 const KEYS = {
   courier: ["binary_sensor", "courier_on_the_way"],
@@ -59,7 +59,7 @@ const STYLE = `
   min-height: 72px;
   padding: 12px 20px;
   display: grid;
-  grid-template-columns: 48px 232px 1fr auto;
+  grid-template-columns: 52px 232px 1fr auto;
   grid-template-areas: "icon count track bags";
   align-items: center;
   column-gap: 20px;
@@ -85,8 +85,10 @@ ha-icon { display: block; }
   --mdc-icon-size: 28px;
 }
 .icon__logo { display: none; width: 40px; height: 40px; object-fit: contain; }
-.icon--logo { background: none; }
+.icon__speed { display: none; width: 12px; height: 24px; margin-right: -2px; }
+.icon--logo { width: 52px; border-radius: 0; background: none; display: flex; align-items: center; justify-content: center; }
 .icon--logo .icon__logo { display: block; }
+.icon--logo .icon__speed { display: block; }
 .icon--logo ha-icon { display: none !important; }
 
 .count { grid-area: count; min-width: 0; }
@@ -140,7 +142,10 @@ ha-icon { display: block; }
   display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
 }
 .info__msg b { font-weight: 500; }
-.info__msg span { color: var(--rk-text-2); }
+.info__msg ha-icon {
+  display: inline-block; vertical-align: -4px; margin-right: 8px;
+  color: var(--rk-text-2); --mdc-icon-size: 20px;
+}
 .banner--ordered .info { display: block; }
 .banner--ordered .track { display: none; }
 
@@ -160,6 +165,7 @@ ha-icon { display: block; }
 /* order items: a native modal dialog, so it escapes the card's containment */
 .items {
   box-sizing: border-box; width: min(480px, calc(100vw - 32px)); max-height: min(80vh, 640px);
+  max-width: none;
   padding: 0; border: none; border-radius: var(--ha-card-border-radius, 12px);
   background: var(--card-background-color, #fff); color: var(--primary-text-color, #212121);
   font-family: var(--ha-font-family-body, Roboto, "Helvetica Neue", Arial, sans-serif);
@@ -211,20 +217,28 @@ ha-icon { display: block; }
 .banner--late { --rk-state: var(--rk-warn); }
 .banner--late .count__num { color: var(--rk-warn-text); }
 
+/* narrower (portrait tablet, sections column): same single row, just tighter */
 @container rk (max-width: 760px) {
-  .banner {
-    grid-template-columns: 44px 1fr auto;
-    grid-template-areas: "icon count bags" "track track track";
-    row-gap: 6px; padding: 12px 16px 14px; column-gap: 14px;
-  }
-  .icon { width: 44px; height: 44px; }
-  .track { padding-top: 0; }
-  .bags { align-self: center; min-width: 0; padding: 4px 12px; margin: 0 -4px 0 0; }
+  .banner { grid-template-columns: 46px auto 1fr auto; column-gap: 12px; padding: 10px 14px; }
+  .icon { width: 46px; height: 40px; }
+  .icon__logo { width: 34px; height: 34px; }
+  .count__num { font-size: 38px; line-height: 40px; }
+  .banner--arriving .count__num { font-size: 34px; }
+  .count__unit { font-size: 17px; }
+  .bags { min-width: 0; padding: 0 6px 0 14px; }
+  .bags__num { font-size: 32px; line-height: 36px; }
+  .track__labels { font-size: 12px; }
+  .track__eta { font-size: 13px; }
 }
-@container rk (max-width: 420px) {
-  .count__num { font-size: 36px; line-height: 38px; }
+/* phone: the trip progress / add-items line moves to a second row */
+@container rk (max-width: 460px) {
+  .banner {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "count bags" "track track";
+    row-gap: 6px;
+  }
   .icon { display: none; }
-  .banner { grid-template-columns: 1fr auto; grid-template-areas: "count bags" "track track"; }
+  .count__num { font-size: 34px; line-height: 38px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -235,7 +249,7 @@ ha-icon { display: block; }
 
 const TEMPLATE = `
 <div class="banner" role="button" tabindex="0">
-  <div class="icon"><img class="icon__logo" alt="" aria-hidden="true"><ha-icon icon="mdi:truck-fast-outline" aria-hidden="true"></ha-icon></div>
+  <div class="icon"><svg class="icon__speed" viewBox="0 0 12 24" aria-hidden="true"><g stroke="#F2A93B" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h8" opacity=".5"/><path d="M1 12h10" opacity=".85"/><path d="M4 18h7" opacity=".5"/></g></svg><img class="icon__logo" alt="" aria-hidden="true"><ha-icon icon="mdi:truck-fast-outline" aria-hidden="true"></ha-icon></div>
   <div class="count">
     <div class="count__main"><span class="count__num"></span><span class="count__unit">min</span></div>
     <div class="count__sub"></div>
@@ -400,6 +414,14 @@ class RohlikCourierCard extends HTMLElement {
       li.append(name, qty);
       return li;
     }));
+    // Drop the list down from the banner when there is room below it, else centre it.
+    const rect = this.getBoundingClientRect();
+    const top = rect.bottom + 8;
+    const anchored = window.innerHeight - top >= 240;
+    Object.assign(dialog.style, anchored
+      ? { margin: "0", inset: "auto", top: `${top}px`, left: `${rect.left}px`,
+          width: `${rect.width}px`, maxHeight: `${window.innerHeight - top - 16}px` }
+      : { margin: "", inset: "", top: "", left: "", width: "", maxHeight: "" });
     dialog.showModal();
     list.focus(); // not the close button, which would show a focus ring
     list.scrollTop = 0;
@@ -410,7 +432,9 @@ class RohlikCourierCard extends HTMLElement {
     const courier = this._state("courier");
     if (courier?.state !== "on" && this._state("ordered")?.state === "on") return this._orderedData();
     if (courier?.state !== "on") {
-      if (!(this._preview || this._editMode)) return null;
+      // The "Add card" picker renders a live preview without setting preview/editMode.
+      const inPicker = this.getRootNode()?.host?.localName === "hui-card-picker";
+      if (!(this._preview || this._editMode || inPicker)) return null;
       // Dashboard editor: show what the banner looks like.
       const now = Date.now();
       return {
@@ -459,14 +483,18 @@ class RohlikCourierCard extends HTMLElement {
     el.sub.textContent = "";
     // Only until when items can still be added; nothing once that has passed.
     const canAdd = d.deadline && d.deadline > d.now;
+    // Cart-plus icon and the time; the day only when it is more than a day away.
+    const until = canAdd
+      ? `${d.deadline - d.now > DAY ? `${relativeDay(d.deadline, d.now)} ` : ""}${hm(d.deadline)}`
+      : "";
     el.msg.innerHTML = canAdd
-      ? `<span>Doobjednat do</span> <b>${relativeDay(d.deadline, d.now)} ${hm(d.deadline)}</b>`
+      ? `<ha-icon icon="mdi:cart-plus" title="Do objednávky lze ještě přidat zboží"></ha-icon><b>do ${until}</b>`
       : "";
     el.bagsNum.textContent = String(d.bags ?? "–");
     el.bagsCap.textContent = `${plural(d.bags ?? 0, "taška", "tašky", "tašek")}\nk vrácení`;
     el.banner.setAttribute("aria-label",
       `Rohlík: objednávka${d.since ? ` dorazí ${relativeDay(d.since, d.now)} od ${hm(d.since)}` : ""}${till ? ` do ${till}` : ""}.`
-      + (canAdd ? ` Doobjednat lze do ${relativeDay(d.deadline, d.now)} ${hm(d.deadline)}.` : ""));
+      + (canAdd ? ` Zboží lze přidat do ${relativeDay(d.deadline, d.now)} ${hm(d.deadline)}.` : ""));
   }
 
   _render() {
@@ -644,5 +672,6 @@ if (!customElements.get("rohlik-courier-card")) {
     name: "Rohlík – doručení",
     description: "Pruh s objednávkou a odpočtem příjezdu kurýra; zobrazí se jen při objednávce.",
     documentationURL: "https://github.com/hruskin/rohlik-courier-card",
+    preview: true,
   });
 }

@@ -5,10 +5,11 @@
 
 A slim full-width Home Assistant dashboard banner for [Rohlík.cz](https://www.rohlik.cz) deliveries. It changes with your order and stays out of the way otherwise:
 
-- **Ordered** — the delivery window (`09:00 zítra`, `okno do 10:00 · za 19 h`), Rohlík's latest message and the order summary.
+- **Ordered** — the delivery time (`09:00 zítra`) and until when items can still be added (`Doobjednat do zítra 02:50`).
 - **Courier on the way** — the countdown to the live ETA and the trip progress from the courier's departure to the live ETA (the marker slides back and a small *+N* appears when the ETA moves later), a pulsing marker in the final minutes, *Přijíždí* at arrival and *+N min* in orange when late. The courier's name and phone stay in the sensor's details.
 - **Always** — the reusable bags to hand back to the courier.
 - **No order** — hidden (the dashboard editor shows a preview).
+- **Tap** — the list of items in the order (name and amount).
 
 The banner is about 72 px tall in every state, follows the dashboard theme (light and dark) and its texts are Czech.
 
@@ -16,7 +17,7 @@ The banner is about 72 px tall in every state, follows the dashboard theme (ligh
 
 ## Requirements
 
-- The Rohlík.cz integration with courier tracking — [hruskin/HA-Rohlik-dynamic](https://github.com/hruskin/HA-Rohlik-dynamic) ≥ 1.0.2. It provides the *Courier on the way* and *Minutes to delivery* entities; with the upstream integration only the *ordered* state works.
+- The Rohlík.cz integration with courier tracking — [hruskin/HA-Rohlik-dynamic](https://github.com/hruskin/HA-Rohlik-dynamic) ≥ 1.0.3. It provides the *Courier on the way*, *Minutes to delivery* and *Add items until* entities and the order's items; with the upstream integration only the delivery time of the *ordered* state works.
 
 ## Installation
 
@@ -40,6 +41,7 @@ Everything can be set in the visual editor. The card finds the integration's ent
 | Option | Meaning |
 |---|---|
 | `show_logo` | Rohlík.cz logo on the left (default `true`; loaded from the Home Assistant brands repository, falls back to a state icon offline) |
+| `number_weight` | `regular` (default) or `bold` — weight of the big countdown/time and bags numbers |
 | `courier_entity` | binary sensor *Courier on the way* |
 | `eta_entity` | sensor *Delivery time* |
 | `minutes_entity` | sensor *Minutes to delivery* |
@@ -47,8 +49,9 @@ Everything can be set in the visual editor. The card finds the integration's ent
 | `ordered_entity` | binary sensor *Next order* |
 | `info_entity` | sensor *Delivery info* |
 | `since_entity` / `till_entity` | sensors *Delivery slot start / end* |
+| `deadline_entity` | sensor *Add items until* |
 
-Tapping the banner opens the order or the courier details.
+Tapping the banner opens the list of items in the order; without items (older integration) it opens the order or the courier details.
 
 ## Development
 

@@ -18,18 +18,19 @@ const now=Date.now(),m=60000,iso=t=>new Date(t).toISOString();
 const day=new Date();day.setHours(0,0,0,0);
 const at=(d,h,mi=0)=>day.getTime()+d*86400000+(h*60+mi)*m;
 const E=(id,k)=>({entity_id:id,platform:'rohlikcz',translation_key:k});
-const ents={};[['binary_sensor.k','courier_on_the_way'],['sensor.e','delivery_time'],['sensor.m','delivery_minutes'],['sensor.b','bags_amount'],['binary_sensor.o','is_ordered'],['sensor.i','delivery_info'],['sensor.s','next_order_since'],['sensor.t','next_order_till']].forEach(([i,k])=>ents[i]=E(i,k));
+const ents={};[['binary_sensor.k','courier_on_the_way'],['sensor.e','delivery_time'],['sensor.m','delivery_minutes'],['sensor.b','bags_amount'],['binary_sensor.o','is_ordered'],['sensor.i','delivery_info'],['sensor.s','next_order_since'],['sensor.t','next_order_till'],['sensor.d','order_edit_deadline']].forEach(([i,k])=>ents[i]=E(i,k));
 function hass(o){const st={};
- st['binary_sensor.o']={state:'on',attributes:{order_data:{id:1,itemsCount:21,priceComposition:{total:{amount:1062.44}},deliverySlot:{since:iso(o.since),till:iso(o.till)}}}};
+ st['binary_sensor.o']={state:'on',attributes:{order_data:{id:1,itemsCount:21,priceComposition:{total:{amount:1062.44}},deliverySlot:{since:iso(o.since),till:iso(o.till)}},items:ITEMS}};
+ st['sensor.d']={state:o.deadline?iso(o.deadline):'unknown'};
  st['sensor.s']={state:iso(o.since)};st['sensor.t']={state:iso(o.till)};st['sensor.i']={state:o.msg||'unknown'};st['sensor.b']={state:'9'};
  if(o.mins!==undefined){const eta=now+o.mins*m;st['binary_sensor.k']={state:'on',attributes:{departed_at:iso(now-45*m),initial_eta:iso(eta-(o.shift||0)*m),courier:'Petr',phone:o.phone||null,nearby:!!o.phone}};st['sensor.e']={state:iso(eta)};st['sensor.m']={state:String(o.mins)};}
  else st['binary_sensor.k']={state:'off',attributes:{}};
  return {entities:ents,states:st};}
+const ITEMS=[['Miil Máslo 82%',2,'250 g'],['BIO kiwi kus (cca 80g)',4,'1 ks'],['Vepřová plec',1,'0,941 kg'],['Rohlíkův Žitný rohlík',2,'70 g'],['Miil Gouda 47% plátky',6,'150 g'],['Čerstvě utrženo – Rajčata koktejlová cherry',1,'320 g'],['Uniferm droždí čerstvé',1,'42 g'],['Charlie\'s Organics BIO Mučenka plech',1,'330 ml']].map(([name,amount,textual_amount])=>({name,amount,textual_amount}));
 const cases=[
- ['Objednáno večer předem',{since:at(1,9),till:at(1,10),msg:'Kurýr přijede s nákupem přibližně v 10:00. Stále je možné přidávat do objednávky další zboží.'}],
- ['Objednáno – ráno, balí se',{since:now+95*m,till:now+155*m,msg:'Tašky už se začínají plnit vaším nákupem. Aktuálně to vypadá, že k vám kurýr dorazí zhruba v 09:00. Na viděnou!'}],
- ['Okno začalo, kurýr ještě nevyjel',{since:now-10*m,till:now+50*m,msg:'Tašky už se začínají plnit vaším nákupem.'}],
- ['Kurýr jede',{since:at(0,9),till:at(0,10),mins:47}],
+ ['Objednáno večer předem',{since:at(1,9),till:at(1,10),deadline:at(1,2)+50*m,msg:'Kurýr přijede s nákupem přibližně v 10:00. Stále je možné přidávat do objednávky další zboží.'}],
+ ['Objednáno – doobjednání už skončilo',{since:now+95*m,till:now+155*m,deadline:now-60*m,msg:'Tašky už se začínají plnit vaším nákupem. Aktuálně to vypadá, že k vám kurýr dorazí zhruba v 09:00. Na viděnou!'}],
+  ['Kurýr jede',{since:at(0,9),till:at(0,10),mins:47}],
  ['Kurýr jede, odhad +12',{since:at(0,9),till:at(0,10),mins:35,shift:12}],
  ['Kurýr blízko',{since:at(0,9),till:at(0,10),mins:6,phone:'+420000000001'}],
  ['Přijíždí',{since:at(0,9),till:at(0,10),mins:1,phone:'+420000000001'}],

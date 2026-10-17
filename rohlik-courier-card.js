@@ -15,10 +15,10 @@
  * (https://github.com/hruskin/HA-Rohlik-dynamic) for the courier states.
  *
  * Entities are found by the integration's translation keys; override with
- * `<name>_entity` (courier, eta, minutes, bags, ordered, info, since, till).
+ * `<name>_entity` (courier, eta, minutes, bags, ordered, info, since, till, deadline).
  */
 
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 const DOMAIN = "rohlikcz";
 const KEYS = {
   courier: ["binary_sensor", "courier_on_the_way"],
@@ -29,6 +29,7 @@ const KEYS = {
   info: ["sensor", "delivery_info"],
   since: ["sensor", "next_order_since"],
   till: ["sensor", "next_order_till"],
+  deadline: ["sensor", "order_edit_deadline"],
 };
 // Rohlík.cz brand icon from the Home Assistant brands repository (what HA itself shows).
 const LOGO_URL = "https://brands.home-assistant.io/rohlikcz/icon.png";
@@ -51,6 +52,7 @@ const STYLE = `
   --rk-warn-text: color-mix(in srgb, var(--rk-warn) 74%, var(--rk-text));
   --rk-rail: color-mix(in srgb, var(--rk-text) 10%, transparent);
   --rk-state: var(--rk-accent);
+  --rk-num-weight: 400;
 
   position: relative;
   box-sizing: border-box;
@@ -90,7 +92,7 @@ ha-icon { display: block; }
 .count { grid-area: count; min-width: 0; }
 .count__main { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .count__num {
-  font-size: 44px; line-height: 44px; font-weight: 400; letter-spacing: -.5px;
+  font-size: 44px; line-height: 44px; font-weight: var(--rk-num-weight); letter-spacing: -.5px;
   font-variant-numeric: tabular-nums;
 }
 .count__unit { font-size: 20px; color: var(--rk-text-2); }
@@ -137,7 +139,8 @@ ha-icon { display: block; }
   font-size: 15px; line-height: 20px; color: var(--rk-text);
   display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
 }
-.info__meta { margin-top: 4px; font-size: 13px; line-height: 16px; color: var(--rk-text-2); font-variant-numeric: tabular-nums; }
+.info__msg b { font-weight: 500; }
+.info__msg span { color: var(--rk-text-2); }
 .banner--ordered .info { display: block; }
 .banner--ordered .track { display: none; }
 
@@ -151,12 +154,42 @@ ha-icon { display: block; }
   border-left: 1px solid var(--rk-border);
 }
 .bags__icon { color: var(--rk-text-2); --mdc-icon-size: 24px; }
-.bags__num { font-size: 36px; line-height: 40px; font-variant-numeric: tabular-nums; }
+.bags__num { font-size: 36px; line-height: 40px; font-weight: var(--rk-num-weight); font-variant-numeric: tabular-nums; }
 .bags__cap { font-size: 13px; line-height: 16px; color: var(--rk-text-2); white-space: pre-line; }
 
+/* order items: a native modal dialog, so it escapes the card's containment */
+.items {
+  box-sizing: border-box; width: min(480px, calc(100vw - 32px)); max-height: min(80vh, 640px);
+  padding: 0; border: none; border-radius: var(--ha-card-border-radius, 12px);
+  background: var(--card-background-color, #fff); color: var(--primary-text-color, #212121);
+  font-family: var(--ha-font-family-body, Roboto, "Helvetica Neue", Arial, sans-serif);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .25);
+}
+.items[open] { display: flex; flex-direction: column; }
+.items::backdrop { background: rgba(0, 0, 0, .4); }
+.items__head {
+  display: flex; align-items: center; gap: 12px; padding: 16px 12px 12px 20px;
+  border-bottom: 1px solid var(--divider-color, #e0e0e0);
+}
+.items__title { flex: 1; font-size: 18px; font-weight: 500; }
+.items__close {
+  width: 36px; height: 36px; border: none; border-radius: 50%; background: none; cursor: pointer;
+  color: var(--secondary-text-color, #727272); font-size: 24px; line-height: 36px;
+}
+.items__close:hover { background: color-mix(in srgb, var(--primary-text-color, #212121) 8%, transparent); }
+.items__list { list-style: none; margin: 0; padding: 4px 0 12px; overflow-y: auto; outline: none; }
+.items__list li {
+  display: flex; justify-content: space-between; gap: 16px; padding: 10px 20px;
+  font-size: 15px; line-height: 20px;
+}
+.items__list li + li { border-top: 1px solid color-mix(in srgb, var(--divider-color, #e0e0e0) 60%, transparent); }
+.items__qty { flex: none; color: var(--secondary-text-color, #727272); font-variant-numeric: tabular-nums; }
+
+/* sits on the top border like a fieldset legend, clear of the content */
 .preview-note {
-  position: absolute; top: 6px; right: 12px;
-  font-size: 11px; color: var(--rk-text-2); letter-spacing: .3px; text-transform: uppercase;
+  position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%);
+  padding: 0 8px; background: var(--rk-bg); white-space: nowrap;
+  font-size: 11px; line-height: 14px; color: var(--rk-text-2); letter-spacing: .3px; text-transform: uppercase;
 }
 
 .banner--nearby .track__marker::after {
@@ -218,13 +251,18 @@ const TEMPLATE = `
     </div>
     <div class="track__labels"><span class="track__dep"></span><span class="track__eta"></span></div>
   </div>
-  <div class="info"><div class="info__msg"></div><div class="info__meta"></div></div>
+  <div class="info"><div class="info__msg"></div></div>
   <div class="bags">
     <div class="bags__icon"><ha-icon icon="mdi:shopping-outline" aria-hidden="true"></ha-icon></div>
     <div class="bags__num"></div>
     <div class="bags__cap"></div>
   </div>
-</div>`;
+</div>
+<dialog class="items" aria-label="Položky nákupu">
+  <div class="items__head"><span class="items__title"></span><button class="items__close" aria-label="Zavřít">×</button></div>
+  <ul class="items__list" tabindex="-1"></ul>
+</dialog>
+`;
 
 const plural = (n, one, few, many) => (n === 1 ? one : n >= 2 && n <= 4 ? few : many);
 const hm = (date) => date.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
@@ -242,14 +280,6 @@ const relativeDay = (date, now) => {
   const weekday = date.toLocaleDateString("cs-CZ", { weekday: "short" });
   return `${weekday} ${date.getDate()}. ${date.getMonth() + 1}.`;
 };
-// "za 14 h 18 min" / "za 40 min"
-const inDuration = (ms) => {
-  const total = Math.max(0, Math.round(ms / 60000));
-  const h = Math.floor(total / 60), m = total % 60;
-  return h ? `za ${h} h${m ? ` ${m} min` : ""}` : `za ${m} min`;
-};
-const price = (amount) =>
-  `${Number(amount).toLocaleString("cs-CZ", { maximumFractionDigits: 0 })} Kč`;
 
 class RohlikCourierCard extends HTMLElement {
   static getStubConfig() {
@@ -320,7 +350,7 @@ class RohlikCourierCard extends HTMLElement {
     const $ = (sel) => root.querySelector(sel);
     this._el = {
       banner: $(".banner"), icon: $(".icon ha-icon"), num: $(".count__num"), unit: $(".count__unit"),
-      sub: $(".count__sub"), track: $(".track"), msg: $(".info__msg"), meta: $(".info__meta"), rail: $(".track__rail"), orig: $(".track__orig"),
+      sub: $(".count__sub"), track: $(".track"), msg: $(".info__msg"), rail: $(".track__rail"), orig: $(".track__orig"),
       dep: $(".track__dep"), eta: $(".track__eta"), bagsNum: $(".bags__num"), bagsCap: $(".bags__cap"),
       iconTile: $(".icon"), logo: $(".icon__logo"),
     };
@@ -329,7 +359,12 @@ class RohlikCourierCard extends HTMLElement {
       this._logoFailed = true;
       this._el.iconTile.classList.remove("icon--logo");
     });
+    const dialog = root.querySelector(".items");
+    root.querySelector(".items__close").addEventListener("click", () => dialog.close());
+    // A click on the backdrop lands on the dialog element itself.
+    dialog.addEventListener("click", (ev) => ev.target === dialog && dialog.close());
     const open = () => {
+      if (this._openItems(dialog)) return;
       const entityId = this._entityId(this._mode === "ordered" ? "ordered" : "courier");
       if (!entityId) return;
       this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId }, bubbles: true, composed: true }));
@@ -341,6 +376,34 @@ class RohlikCourierCard extends HTMLElement {
         open();
       }
     });
+  }
+
+  // The order's line items in a modal; false when the integration has none to show.
+  _openItems(dialog) {
+    const items = this._state("ordered")?.attributes?.items;
+    if (!Array.isArray(items) || !items.length) return false;
+    dialog.querySelector(".items__title").textContent =
+      `Nákup · ${items.length} ${plural(items.length, "položka", "položky", "položek")}`;
+    const list = dialog.querySelector(".items__list");
+    list.replaceChildren(...items.map((item) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.textContent = item.name ?? "";
+      const qty = document.createElement("span");
+      qty.className = "items__qty";
+      const amount = Number(item.amount) || 1;
+      const textual = item.textual_amount || "";
+      const perPiece = textual.match(/^1\s+(\S+)$/); // "1 ks" × 4 → "4 ks"
+      qty.textContent = amount <= 1 ? textual || "1 ks"
+        : perPiece ? `${amount} ${perPiece[1]}`
+        : `${amount} ×${textual ? ` ${textual}` : ""}`;
+      li.append(name, qty);
+      return li;
+    }));
+    dialog.showModal();
+    list.focus(); // not the close button, which would show a focus ring
+    list.scrollTop = 0;
+    return true;
   }
 
   _data() {
@@ -375,22 +438,18 @@ class RohlikCourierCard extends HTMLElement {
   _orderedData() {
     const order = this._state("ordered")?.attributes?.order_data || {};
     const slot = order.deliverySlot || {};
-    const info = this._state("info")?.state;
     const bags = Number.parseInt(this._state("bags")?.state, 10);
     return {
       mode: "ordered", now: Date.now(),
       since: toDate(this._state("since")?.state) || toDate(slot.since),
       till: toDate(this._state("till")?.state) || toDate(slot.till),
-      message: info && !["unknown", "unavailable"].includes(info) ? info : null,
-      items: order.itemsCount ?? null,
-      total: order.priceComposition?.total?.amount ?? null,
+      deadline: toDate(this._state("deadline")?.state),
       bags: Number.isNaN(bags) ? null : bags,
     };
   }
 
   _renderOrdered(d) {
     const el = this._el;
-    const started = d.since && d.now >= d.since;
     el.banner.className = "banner banner--ordered";
     el.icon.setAttribute("icon", "mdi:package-variant-closed");
     el.num.textContent = d.since ? hm(d.since) : "–";
@@ -398,18 +457,16 @@ class RohlikCourierCard extends HTMLElement {
     el.unit.textContent = d.since ? relativeDay(d.since, d.now) : "";
     const till = d.till ? hm(d.till) : null;
     el.sub.textContent = "";
-    el.msg.textContent = d.message || "Objednávka čeká na doručení";
-    el.meta.textContent = [
-      ...(started
-        ? [`okno běží${till ? ` do ${till}` : ""}`, "kurýr ještě nevyjel"]
-        : [till ? `okno do ${till}` : null, d.since ? inDuration(d.since - d.now) : null]),
-      d.items != null ? `${d.items} ${plural(d.items, "položka", "položky", "položek")}` : null,
-      d.total != null ? price(d.total) : null,
-    ].filter(Boolean).join(" · ");
+    // Only until when items can still be added; nothing once that has passed.
+    const canAdd = d.deadline && d.deadline > d.now;
+    el.msg.innerHTML = canAdd
+      ? `<span>Doobjednat do</span> <b>${relativeDay(d.deadline, d.now)} ${hm(d.deadline)}</b>`
+      : "";
     el.bagsNum.textContent = String(d.bags ?? "–");
     el.bagsCap.textContent = `${plural(d.bags ?? 0, "taška", "tašky", "tašek")}\nk vrácení`;
     el.banner.setAttribute("aria-label",
-      `Rohlík: objednávka${d.since ? ` dorazí ${relativeDay(d.since, d.now)} od ${hm(d.since)}` : ""}${till ? ` do ${till}` : ""}.`);
+      `Rohlík: objednávka${d.since ? ` dorazí ${relativeDay(d.since, d.now)} od ${hm(d.since)}` : ""}${till ? ` do ${till}` : ""}.`
+      + (canAdd ? ` Doobjednat lze do ${relativeDay(d.deadline, d.now)} ${hm(d.deadline)}.` : ""));
   }
 
   _render() {
@@ -424,6 +481,7 @@ class RohlikCourierCard extends HTMLElement {
     const logo = this._config.show_logo !== false && !this._logoFailed;
     if (logo && !el.logo.getAttribute("src")) el.logo.src = LOGO_URL;
     el.iconTile.classList.toggle("icon--logo", logo);
+    el.banner.style.setProperty("--rk-num-weight", this._config.number_weight === "bold" ? "600" : "400");
     if (d.mode === "ordered") {
       this._renderOrdered(d);
       return;
@@ -501,9 +559,22 @@ const ENTITY_FIELDS = [
   ["info_entity", "Informace o doručení", "sensor"],
   ["since_entity", "Začátek doručení", "sensor"],
   ["till_entity", "Konec doručení", "sensor"],
+  ["deadline_entity", "Doobjednat do", "sensor"],
 ];
 const EDITOR_SCHEMA = [
   { name: "show_logo", selector: { boolean: {} } },
+  {
+    name: "number_weight",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "regular", label: "Normální" },
+          { value: "bold", label: "Tučné" },
+        ],
+      },
+    },
+  },
   {
     name: "entities",
     type: "expandable",
@@ -517,6 +588,7 @@ const EDITOR_SCHEMA = [
 ];
 const EDITOR_LABELS = {
   show_logo: "Logo Rohlíku vlevo",
+  number_weight: "Písmo čísel",
   ...Object.fromEntries(ENTITY_FIELDS.map(([name, label]) => [name, label])),
 };
 
@@ -546,14 +618,16 @@ class RohlikCourierCardEditor extends HTMLElement {
         for (const [key, value] of Object.entries(config)) {
           if (value === "" || value === undefined || value === null) delete config[key];
         }
-        if (config.show_logo === true) delete config.show_logo; // default
+        // Keep defaults out of the YAML.
+        if (config.show_logo === true) delete config.show_logo;
+        if (config.number_weight === "regular") delete config.number_weight;
         this._config = config;
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
       });
       this.append(note, this._form);
     }
     this._form.hass = this._hass;
-    this._form.data = { show_logo: true, ...this._config };
+    this._form.data = { show_logo: true, number_weight: "regular", ...this._config };
   }
 }
 
